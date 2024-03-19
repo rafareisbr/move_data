@@ -1,31 +1,38 @@
-# Sources
+# Move Data
 
-- Este projeto tem o objetivo de tentar criar extratores simples de dados para utilizar dentro do apache airflow
-- Os extratores capturam o dado da origem e transformam em pandas e então em um arquivo de texto (json, parquet, csv)
+# Motivação
+Facilitar o processo de Extracao e Carga de dados num processo que use orquestrador de fluxos de dados
+Essa biblioteca expõe dois tipos de comportamentos: Extratores e Salvadores (de dados)
+Todos os extratores retornam um iter de dataframes, do pandas
+Todos os salvadores esperam um dataframe do pandas
+No momento, é possível extrair de bancos de dados suportados pelo SqlAlchemy e Arquivos Suportados pelo Pandas
 
-## Tipos de sync que gostariamos de ter:
-- Full Refresh - Overwrite
-- Incremental Sync - Time Window
+# Como instalar
+pip install git+ssh://git@github.com/rafareisbr/move_data.git
 
-## Init package
-hatch new "nome projeto"
-hatch new --init # existing project
+# Exemplo de uso
+```python
+import sqlalchemy
+from move_data.extrair import ExtrairSqlAlquemy
+from move_data.salvar import SalvarSqlAlquemy
 
-# Create env
-hatch env create
-hatch shell (ativa o ambiente)
-pip show omni_move_data (confirma pacote instalado)
-hatch run python -c "import sys;print(sys.executable)" # onde está o python do environment
+# todos os extratores do sql alquemy recebem uma engine do sql alquemy como entrada
+engine = sqlalchemy.create_engine(
+    'postgresql+psycopg2://admin:mysecretpassword@localhost:5432/test'
+)
 
-# Test
-hatch run test (roda os testes do pytest)
+# obtem uma lista virtual de todos os dados em paginas de tamanho 10000, relativas a query de entrada.
+dataset = ExtrairSqlAlquemy(
+            engine=engine, 
+            chunk_size=10000, 
+            query="select * from usuarios"
+          ).extrair()
 
-## Gerar build e instalar pacote
-hatch build
-pip install dist/pacote_gerado.whl
-
-## Instalar pacote em modo editável
-pip install -e .
-
-## Se você subir o projeto nesta estrutura pode instalar pacote pelo link do github
-pip install git+ssh://git@github.com:seu_usuario/seu_projeto.git
+for data in dataset:
+    SalvarSqlAlquemy(
+        df=data,
+        engine=engine,
+        nome_tabela='tabela_destino',
+        if_exists='append'
+    ).salvar()
+```
